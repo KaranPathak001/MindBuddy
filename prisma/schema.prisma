@@ -1,0 +1,100 @@
+// MINDHAVEN - AI Mental Wellness for Youth
+// Database Schema - PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  name          String?
+  isAnonymous   Boolean   @default(false) @map("is_anonymous")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  moodLogs      MoodLog[]
+  chatHistory   ChatMessage[]
+  journalEntries JournalEntry[]
+  communityPosts CommunityPost[]
+
+  @@map("users")
+}
+
+model MoodLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  mood        String   // happy, sad, anxious, calm, angry, confused, hopeful, etc.
+  intensity   Int      // 1-10 scale
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("mood_logs")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  role      String   // user | assistant
+  content   String
+  emotion   String?  // detected emotion
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("chat_messages")
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  content     String
+  aiInsight   String?  @map("ai_insight")
+  mood        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("journal_entries")
+}
+
+model Resource {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String   // article, guide, helpline, tool
+  url         String?
+  content     String?
+  isCrisis    Boolean  @default(false) @map("is_crisis")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("resources")
+}
+
+model CommunityPost {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  content   String
+  isAnonymous Boolean @default(true) @map("is_anonymous")
+  approved  Boolean  @default(false)
+  toxicityScore Float? @map("toxicity_score")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([approved])
+  @@map("community_posts")
+}
