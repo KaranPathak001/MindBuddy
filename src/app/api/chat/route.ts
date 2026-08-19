@@ -136,7 +136,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const messages = body?.messages;
     const clientApiKey = body?.apiKey;
-    const clientModel = body?.model || "inclusionai/ling-2.6-1t:free";
+    const clientModel = body?.model || "openrouter/auto";
 
     // Fallback to env variable if client doesn't provide an API key
     const envApiKey = await getEnvValue("OPENROUTER_API_KEY");
@@ -191,26 +191,36 @@ export async function POST(request: Request) {
           content: String(m.content ?? ""),
         }));
 
-      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "http://localhost:3000", // Required by OpenRouter for ranking
-          "X-Title": "MindHaven", // Required by OpenRouter for ranking
-        },
-        body: JSON.stringify({
-          model: clientModel,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...openRouterMessages,
-          ],
-          temperature: 0.8,
-          max_tokens: 300,
-        }),
-      });
+      const callOpenRouter = async (modelToUse: string) => {
+        return fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+            "HTTP-Referer": "http://localhost:3000", // Required by OpenRouter for ranking
+            "X-Title": "MindHaven", // Required by OpenRouter for ranking
+          },
+          body: JSON.stringify({
+            model: modelToUse,
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              ...openRouterMessages,
+            ],
+            temperature: 0.8,
+            max_tokens: 300,
+          }),
+        });
+      };
 
-      const data = await res.json();
+      let res = await callOpenRouter(clientModel);
+      let data = await res.json();
+
+      // If requested model fails (e.g. model slug changed or deprecated), fallback to openrouter/auto
+      if (!res.ok && clientModel !== "openrouter/auto") {
+        console.warn(`Model ${clientModel} failed with status ${res.status}, falling back to openrouter/auto`);
+        res = await callOpenRouter("openrouter/auto");
+        data = await res.json();
+      }
 
       if (!res.ok) {
         console.error("OpenRouter API error status:", res.status);

@@ -29,7 +29,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("inclusionai/ling-2.6-1t:free");
+  const [model, setModel] = useState("openrouter/auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function ChatPage() {
     const savedKey = localStorage.getItem("openRouterApiKey");
     const savedModel = localStorage.getItem("openRouterModel");
     if (savedKey) setApiKey(savedKey);
-    if (savedModel && savedModel !== "openrouter/hunter-alpha") {
+    if (savedModel && savedModel !== "openrouter/hunter-alpha" && savedModel !== "inclusionai/ling-2.6-1t:free") {
       setModel(savedModel);
     }
 
@@ -175,11 +175,11 @@ export default function ChatPage() {
               <div className="space-y-3">
                 <label className="text-sm font-medium">Model</label>
                 <Input 
-                  placeholder="inclusionai/ling-2.6-1t:free" 
+                  placeholder="openrouter/auto" 
                   value={model} 
                   onChange={(e) => saveSettings(apiKey, e.target.value)} 
                 />
-                <p className="text-xs text-muted-foreground">Defaults to inclusionai/ling-2.6-1t:free</p>
+                <p className="text-xs text-muted-foreground">Defaults to openrouter/auto (or try google/gemma-4-31b-it:free)</p>
               </div>
               <Button onClick={() => setShowSettings(false)} className="w-full">
                 Save & Close
