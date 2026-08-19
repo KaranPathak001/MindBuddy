@@ -14,12 +14,15 @@ import {
   Users,
   Menu,
   X,
+  User as UserIcon,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { useAuth } from "@/context/auth-context";
 
 const navLinks: { href: string; label: string; icon?: LucideIcon }[] = [
   { href: "/", label: "Home" },
@@ -33,7 +36,9 @@ const navLinks: { href: string; label: string; icon?: LucideIcon }[] = [
 export function Navbar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { user, loading, logout, openAuthModal } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
@@ -100,19 +105,82 @@ export function Navbar() {
               )}
             </AnimatePresence>
           </Button>
+
           <div className="hidden sm:flex items-center gap-2">
-            <Show when="signed-out">
-              <SignInButton mode="modal">
-                <Button variant="ghost" size="sm">Log in</Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <Button variant="default" size="sm">Sign up</Button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
-              <UserButton />
-            </Show>
+            {!loading && (
+              <>
+                {user ? (
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                      className="gap-2"
+                    >
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-xs uppercase">
+                        {user.name?.[0] || user.email[0]}
+                      </div>
+                      <span className="max-w-[120px] truncate text-sm font-medium">
+                        {user.name || user.email.split("@")[0]}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+
+                    <AnimatePresence>
+                      {userDropdownOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setUserDropdownOpen(false)}
+                          />
+                          <motion.div
+                            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute right-0 mt-2 z-50 w-56 rounded-xl border border-border bg-card p-2 shadow-xl"
+                          >
+                            <div className="px-3 py-2 border-b border-border/50">
+                              <p className="text-sm font-semibold truncate">{user.name || "User"}</p>
+                              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setUserDropdownOpen(false);
+                                logout();
+                              }}
+                              className="w-full mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <LogOut className="h-4 w-4" />
+                              Log out
+                            </button>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openAuthModal("login")}
+                    >
+                      Log in
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => openAuthModal("register")}
+                    >
+                      Sign up
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
           </div>
+
           <Button
             variant="ghost"
             size="icon"
@@ -155,23 +223,54 @@ export function Navbar() {
                   </Link>
                 );
               })}
-              <Show when="signed-out">
-                <SignInButton mode="modal">
-                  <Button variant="ghost" className="w-full justify-start" onClick={() => setMobileOpen(false)}>
-                    Log in
-                  </Button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <Button variant="default" className="w-full" onClick={() => setMobileOpen(false)}>
-                    Sign up
-                  </Button>
-                </SignUpButton>
-              </Show>
-              <Show when="signed-in">
-                <div className="p-2 border-t mt-2">
-                  <UserButton />
+
+              {!loading && (
+                <div className="pt-2 border-t border-border/40">
+                  {user ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 px-3 py-1.5">
+                        <UserIcon className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium truncate">{user.email}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          setMobileOpen(false);
+                          logout();
+                        }}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Log out
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setMobileOpen(false);
+                          openAuthModal("login");
+                        }}
+                      >
+                        Log in
+                      </Button>
+                      <Button
+                        variant="default"
+                        className="w-full"
+                        onClick={() => {
+                          setMobileOpen(false);
+                          openAuthModal("register");
+                        }}
+                      >
+                        Sign up
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </Show>
+              )}
             </div>
           </motion.div>
         )}

@@ -3,7 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Navbar } from "@/components/navbar";
-import { ClerkProvider } from "@clerk/nextjs";
+import { AuthProvider } from "@/context/auth-context";
+import { AuthModal } from "@/components/auth-modal";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,23 +24,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      appearance={{
-        elements: {
-          footer: "hidden",
-        },
-      }}
-    >
-      <html lang="en" suppressHydrationWarning>
-        <body className={`${inter.variable} font-sans antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <AuthProvider>
           <ThemeProvider>
             <div className="relative min-h-screen flex flex-col">
               <Navbar />
               <main className="flex-1">{children}</main>
             </div>
+            <AuthModal />
           </ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+        </AuthProvider>
+      </body>
+    </html>
   );
 }
