@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, Sparkles, MessageCircle, Settings } from "lucide-react";
+import { Send, Loader2, Sparkles, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -27,7 +27,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("openrouter/auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -148,48 +147,9 @@ export default function ChatPage() {
           <Sparkles className="h-5 w-5 text-primary" />
           MindHaven Chat
         </h1>
-        <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)}>
-          <Settings className="h-5 w-5" />
-        </Button>
       </div>
 
-      {showSettings ? (
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md mx-auto"
-          >
-            <h2 className="text-2xl font-bold mb-6">Settings</h2>
-            <Card className="p-6 glass border-primary/20 space-y-6">
-              <div className="space-y-3">
-                <label className="text-sm font-medium">OpenRouter API Key (Optional)</label>
-                <Input 
-                  type="password" 
-                  placeholder="sk-or-v1-..." 
-                  value={apiKey} 
-                  onChange={(e) => saveSettings(e.target.value, model)} 
-                />
-                <p className="text-xs text-muted-foreground">Stored securely in your browser's local storage.</p>
-              </div>
-              <div className="space-y-3">
-                <label className="text-sm font-medium">Model</label>
-                <Input 
-                  placeholder="openrouter/auto" 
-                  value={model} 
-                  onChange={(e) => saveSettings(apiKey, e.target.value)} 
-                />
-                <p className="text-xs text-muted-foreground">Defaults to openrouter/auto (or try google/gemma-4-31b-it:free)</p>
-              </div>
-              <Button onClick={() => setShowSettings(false)} className="w-full">
-                Save & Close
-              </Button>
-            </Card>
-          </motion.div>
-        </div>
-      ) : (
-      <>
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {messages.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
@@ -293,8 +253,6 @@ export default function ChatPage() {
           Your conversations are confidential and not shared
         </p>
       </div>
-      </>
-      )}
     </div>
   );
 }
