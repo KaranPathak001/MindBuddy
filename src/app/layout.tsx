@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MINDHAVEN – AI Mental Wellness for Youth",
+  title: "HEALTECH – AI Mental Wellness for Youth",
   description:
     "Your safe space for mental wellness. AI-powered, confidential, empathetic support for youth seeking emotional guidance.",
   keywords: ["mental health", "AI wellness", "youth", "India", "therapy"],

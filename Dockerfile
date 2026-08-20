@@ -1,4 +1,4 @@
-# MINDHAVEN - Multi-stage Docker build
+# HEALTECH - Multi-stage Docker build
 FROM node:20-alpine AS base
 
 # Dependencies

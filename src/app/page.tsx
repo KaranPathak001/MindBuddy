@@ -43,7 +43,7 @@ const features = [
 const testimonials = [
   {
     quote:
-      "MINDHAVEN helped me during my toughest semester. The AI never judged me.",
+      "HEALTECH helped me during my toughest semester. The AI never judged me.",
     author: "R.P., 22",
   },
   {
@@ -267,7 +267,7 @@ export default function LandingPage() {
       <footer className="border-t border-border py-12 px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl flex flex-col sm:flex-row justify-between items-center gap-4">
           <span className="font-bold bg-gradient-to-r from-violet-500 to-teal-500 bg-clip-text text-transparent">
-            MINDHAVEN
+            HEALTECH
           </span>
           <div className="flex gap-6 text-sm text-muted-foreground">
             <Link href="/resources" className="hover:text-foreground">
@@ -282,7 +282,7 @@ export default function LandingPage() {
           </div>
         </div>
         <p className="text-center text-sm text-muted-foreground mt-6">
-          If you&apos;re in crisis, please reach out to a helpline. MINDHAVEN
+          If you&apos;re in crisis, please reach out to a helpline. HEALTECH
           complements, but does not replace, professional care.
         </p>
       </footer>

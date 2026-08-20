@@ -5,7 +5,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mindhaven
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/healtech
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -17,7 +17,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mindhaven
+      POSTGRES_DB: healtech
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

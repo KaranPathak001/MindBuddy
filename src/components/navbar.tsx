@@ -48,7 +48,7 @@ export function Navbar() {
           className="flex items-center gap-2 font-bold text-xl tracking-tight"
         >
           <span className="bg-gradient-to-r from-violet-500 to-teal-500 bg-clip-text text-transparent">
-            MINDHAVEN
+            HEALTECH
           </span>
         </Link>
 
