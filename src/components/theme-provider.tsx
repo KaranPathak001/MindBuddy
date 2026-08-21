@@ -18,7 +18,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>("dark");
 
   React.useEffect(() => {
-    const stored = localStorage.getItem("healtech-theme") as Theme | null;
+    const stored = localStorage.getItem("mindhaven-theme") as Theme | null;
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const initial = stored || (prefersDark ? "dark" : "light");
     setThemeState(initial);
@@ -27,7 +27,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = React.useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem("healtech-theme", newTheme);
+    localStorage.setItem("mindhaven-theme", newTheme);
     document.documentElement.classList.toggle("dark", newTheme === "dark");
   }, []);
 

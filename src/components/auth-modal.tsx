@@ -89,12 +89,12 @@ export function AuthModal() {
               <Sparkles className="h-6 w-6" />
             </div>
             <h2 className="text-2xl font-bold tracking-tight">
-              {mode === "login" ? "Welcome back to HealTech" : "Create your account"}
+              {mode === "login" ? "Welcome back to MindHaven" : "Create your account"}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {mode === "login"
                 ? "Enter your credentials to access your safe space."
-                : "Join HealTech for personalized wellness support."}
+                : "Join MindHaven for personalized wellness support."}
             </p>
           </div>
 

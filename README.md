@@ -1,4 +1,4 @@
-# HEALTECH – AI Mental Wellness for Youth
+# MINDHAVEN – AI Mental Wellness for Youth
 
 Your safe space for mental wellness. AI-powered, confidential, empathetic support for youth seeking emotional guidance.
 
@@ -64,7 +64,7 @@ docker-compose exec app npx prisma db push
 ## Project Structure
 
 ```
-healtech/
+mindhaven/
 ├── prisma/
 │   └── schema.prisma      # Database models
 ├── src/

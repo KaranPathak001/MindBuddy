@@ -63,7 +63,7 @@ type LocalEnvCache = {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __healtechLocalEnvCache: LocalEnvCache | undefined;
+  var __mindhavenLocalEnvCache: LocalEnvCache | undefined;
 }
 
 async function getEnvValue(name: string): Promise<string | undefined> {
@@ -73,8 +73,8 @@ async function getEnvValue(name: string): Promise<string | undefined> {
   // Next should load `.env`, but some Windows setups end up with empty/missing runtime env.
   // As a fallback, parse `.env` from the project root.
   const cache =
-    global.__healtechLocalEnvCache ??
-    (global.__healtechLocalEnvCache = { loaded: false, values: {} });
+    global.__mindhavenLocalEnvCache ??
+    (global.__mindhavenLocalEnvCache = { loaded: false, values: {} });
 
   if (!cache.loaded) {
     try {
@@ -198,7 +198,7 @@ export async function POST(request: Request) {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
             "HTTP-Referer": "http://localhost:3000", // Required by OpenRouter for ranking
-            "X-Title": "HealTech", // Required by OpenRouter for ranking
+            "X-Title": "MindHaven", // Required by OpenRouter for ranking
           },
           body: JSON.stringify({
             model: modelToUse,

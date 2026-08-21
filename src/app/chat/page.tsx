@@ -145,7 +145,7 @@ export default function ChatPage() {
       <div className="flex justify-between items-center p-4 border-b border-border glass rounded-t-xl mt-4 mx-4 sm:mx-0">
         <h1 className="font-semibold text-lg flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
-          HealTech Chat
+          MindHaven Chat
         </h1>
       </div>
 
