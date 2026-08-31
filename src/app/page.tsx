@@ -98,11 +98,7 @@ export default function LandingPage() {
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/auth">
-                <Button size="lg" variant="outline" className="text-base px-8">
-                  Create Free Account
-                </Button>
-              </Link>
+
             </div>
           </motion.div>
         </div>
