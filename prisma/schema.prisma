@@ -28,12 +28,19 @@ model User {
 }
 
 model MoodLog {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  mood        String   // happy, sad, anxious, calm, angry, confused, hopeful, etc.
-  intensity   Int      // 1-10 scale
-  note        String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  mood          String   // happy, sad, anxious, calm, angry, confused, hopeful, etc.
+  intensity     Int      // 1-10 scale
+  note          String?
+  stressLevel   String?  @map("stress_level")    // Low, Moderate, High, Very High
+  energyLevel   String?  @map("energy_level")    // Very Low, Low, Moderate, High, Very High
+  sleepQuality  String?  @map("sleep_quality")   // Very Poor, Poor, Fair, Good, Excellent
+  socialLevel   String?  @map("social_level")    // Very Low, Low, Moderate, High, Very High
+  responses     String?                           // JSON stringified questionnaire responses
+  aiInsight     String?  @map("ai_insight")      // AI-generated wellness insight
+  isAssessment  Boolean  @default(false) @map("is_assessment")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
