@@ -82,6 +82,8 @@ interface AIMetrics {
 }
 
 interface AIResponse {
+  mood: string;
+  emoji: string;
   insight: string;
   metrics: AIMetrics;
   aiFailed?: boolean;
@@ -90,7 +92,11 @@ interface AIResponse {
 // ─── AI INSIGHT GENERATION ───────────────────────────────────────────────
 
 function buildInsightPrompt(responses: QuestionnaireResponses): string {
-  return `You are a compassionate mental wellness companion. Based on a user's deep emotional reflection, provide a brief, warm wellness insight, AND numerical metrics evaluating their state on a scale of 1 to 10 (10 being the highest/best for positive traits, but for stress, 10 means highest stress).
+  return `You are a compassionate mental wellness companion. Based on a user's deep emotional reflection:
+1. Detect their primary mood in 1-2 words (e.g., Happy, Peaceful, Reflective, Anxious, Sad, Hopeful, Overwhelmed, Energetic, Grateful, Calm, Exhausted).
+2. Choose the single most fitting emoji for that mood (e.g., 😊, 🌿, 💭, 😰, 🌧️, ✨, 🌊, ⚡, 🙏, 😌, 🥱).
+3. Provide a brief, warm wellness insight (2-3 sentences).
+4. Provide numerical metrics on a scale of 1 to 10 (10 being highest/best for positive traits, but for stress, 10 means highest stress).
 
 USER'S REFLECTION:
 1. On their mind: ${responses.q1Mind}
@@ -106,6 +112,8 @@ IMPORTANT RULES:
 - Keep the tone gentle, empathetic, and encouraging.
 - Your response MUST be valid JSON, strictly following this structure:
 {
+  "mood": "Calm & Reflective",
+  "emoji": "🌿",
   "insight": "A supportive 2-3 sentence paragraph summarizing their emotional state and offering practical wellness suggestions.",
   "metrics": {
     "happiness": 8,
@@ -125,6 +133,8 @@ async function generateAIInsight(
   const prompt = buildInsightPrompt(responses);
 
   const defaultResponse: AIResponse = {
+    mood: "Reflective",
+    emoji: "💭",
     insight: "AI analysis is temporarily unavailable, please try again shortly.",
     metrics: { happiness: 5, stress: 5, energy: 5, hope: 5, social: 5 },
     aiFailed: true,
@@ -144,7 +154,7 @@ async function generateAIInsight(
         messages: [
           {
             role: "system",
-            content: "You are a warm, empathetic AI mental wellness companion. You ONLY reply in valid JSON format. You do not include markdown blocks like \`\`\`json, just raw JSON.",
+            content: "You are a warm, empathetic AI mental wellness companion. You ONLY reply in valid JSON format. You do not include markdown blocks like ```json, just raw JSON.",
           },
           { role: "user", content: prompt },
         ],
@@ -160,18 +170,25 @@ async function generateAIInsight(
     }
 
     const content = data?.choices?.[0]?.message?.content || "";
-    // Clean up potential markdown formatting from AI
-    const jsonStr = content.replace(/^```json/m, "").replace(/^```/m, "").trim();
+    
+    // Robust JSON extraction (extracts { ... } block even if model includes commentary or ```json blocks)
+    let jsonStr = content.trim();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    }
     
     let parsed: any;
     try {
-        parsed = JSON.parse(jsonStr);
+      parsed = JSON.parse(jsonStr);
     } catch (e) {
-        console.error("JSON parse error:", e, "Content was:", jsonStr);
-        return defaultResponse;
+      console.error("JSON parse error:", e, "Content was:", content);
+      return defaultResponse;
     }
     
     return {
+      mood: parsed.mood || defaultResponse.mood,
+      emoji: parsed.emoji || defaultResponse.emoji,
       insight: parsed.insight || defaultResponse.insight,
       metrics: {
         happiness: parsed.metrics?.happiness || 5,
@@ -217,6 +234,8 @@ export async function POST(request: Request) {
     } else {
       console.warn("Missing OPENROUTER_API_KEY in environment");
       aiResult = {
+        mood: "Reflective",
+        emoji: "💭",
         insight: "AI service is not configured correctly. Please contact support.",
         metrics: { happiness: 5, stress: 5, energy: 5, hope: 5, social: 5 },
         aiFailed: true,
@@ -229,13 +248,16 @@ export async function POST(request: Request) {
     const intensity = Math.max(1, Math.min(10, Math.round(compositeScore)));
 
     // Save to database
+    const detectedMood = aiResult.mood || "Reflective";
+    const detectedEmoji = aiResult.emoji || "💭";
+
     const log = await prisma.moodLog.create({
       data: {
         userId: user.id,
-        mood: "reflective",
+        mood: detectedMood,
         intensity: intensity,
-        note: "Deep Emotional Check-in",
-        responses: JSON.stringify({ ...responses, metrics: aiResult.metrics }),
+        note: `Deep Emotional Check-in: ${detectedMood} ${detectedEmoji}`,
+        responses: JSON.stringify({ ...responses, metrics: aiResult.metrics, mood: detectedMood, emoji: detectedEmoji }),
         aiInsight: aiResult.insight,
         isAssessment: true,
       },
@@ -243,6 +265,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
+      mood: detectedMood,
+      emoji: detectedEmoji,
       aiInsight: aiResult.insight,
       metrics: aiResult.metrics,
       aiFailed: aiResult.aiFailed,

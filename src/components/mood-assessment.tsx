@@ -38,6 +38,8 @@ interface AIMetrics {
 }
 
 interface AssessmentResult {
+  mood?: string;
+  emoji?: string;
   aiInsight: string;
   metrics: AIMetrics;
 }
@@ -137,6 +139,8 @@ export function MoodAssessment({ onComplete, onClose }: MoodAssessmentProps) {
 
       const data = await res.json();
       setResult({
+        mood: data.mood,
+        emoji: data.emoji,
         aiInsight: data.aiInsight,
         metrics: data.metrics,
       });
@@ -218,7 +222,7 @@ export function MoodAssessment({ onComplete, onClose }: MoodAssessmentProps) {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", delay: 0.2 }}
-              className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center"
+              className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/20"
             >
               <CheckCircle2 className="h-8 w-8 text-white" />
             </motion.div>
@@ -228,10 +232,35 @@ export function MoodAssessment({ onComplete, onClose }: MoodAssessmentProps) {
             </p>
           </div>
 
+          {/* Detected Mood Banner with Emoji */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.25 }}
+            className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-violet-500/10 via-primary/10 to-teal-500/10 p-5 text-center shadow-sm"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+              Detected Mood State
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-4xl sm:text-5xl filter drop-shadow-sm select-none animate-bounce" style={{ animationDuration: '2s' }}>
+                {result.emoji || "✨"}
+              </span>
+              <div className="text-left">
+                <span className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-violet-400 via-primary to-teal-400 bg-clip-text text-transparent">
+                  {result.mood || "Reflective"}
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  Here is how you're feeling right now
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.35 }}
             className="bg-card border rounded-2xl p-4 shadow-sm h-[300px]"
           >
             <ResponsiveContainer width="100%" height="100%">
