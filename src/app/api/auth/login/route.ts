@@ -24,6 +24,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        { error: "Please set a password or use your registered credentials." },
+        { status: 400 }
+      );
+    }
+
     const isValidPassword = await verifyPassword(password, user.passwordHash);
 
     if (!isValidPassword) {

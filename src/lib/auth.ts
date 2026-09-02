@@ -52,6 +52,7 @@ export async function getAuthUser() {
         id: true,
         email: true,
         name: true,
+        avatarUrl: true,
         isAnonymous: true,
         createdAt: true,
       },

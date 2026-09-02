@@ -130,6 +130,8 @@ export function AuthModal() {
             </button>
           </div>
 
+
+
           {/* Error display */}
           {error && (
             <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm font-medium text-destructive">
