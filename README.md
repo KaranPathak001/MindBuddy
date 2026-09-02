@@ -7,7 +7,7 @@ Your safe space for mental wellness. AI-powered, confidential, empathetic suppor
 - **Frontend:** Next.js 14 (App Router), TypeScript, TailwindCSS, Framer Motion, Lucide Icons
 - **Backend:** Next.js API Routes, Prisma ORM, PostgreSQL
 - **Auth:** JWT
-- **AI:** Google Gemini API or OpenAI API
+- **AI:** Open Router API
 
 ## Quick Start
 
