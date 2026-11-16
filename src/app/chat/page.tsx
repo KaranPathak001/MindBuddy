@@ -2,10 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, Sparkles, MessageCircle } from "lucide-react";
+import { Send, Loader2, Shield, Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -16,31 +14,20 @@ interface Message {
   timestamp: Date;
 }
 
-const SUGGESTIONS = [
-  "I'm feeling anxious about exams",
-  "How can I cope with stress?",
-  "I need someone to talk to",
-  "Suggest a quick relaxation exercise",
+const SUGGESTION_PILLS = [
+  "Feeling overwhelmed by college deadlines",
+  "How can I manage acute exam panic?",
+  "I feel isolated from friends lately",
+  "Suggest a quick 3-minute grounding exercise",
 ];
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("openrouter/auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load settings from local storage on mount
-    const savedKey = localStorage.getItem("openRouterApiKey");
-    const savedModel = localStorage.getItem("openRouterModel");
-    if (savedKey) setApiKey(savedKey);
-    if (savedModel && savedModel !== "openrouter/hunter-alpha" && savedModel !== "inclusionai/ling-2.6-1t:free") {
-      setModel(savedModel);
-    }
-
-    // Load chat history
     const loadHistory = async () => {
       setLoading(true);
       try {
@@ -67,13 +54,6 @@ export default function ChatPage() {
     };
     loadHistory();
   }, []);
-
-  const saveSettings = (newKey: string, newModel: string) => {
-    setApiKey(newKey);
-    setModel(newModel);
-    localStorage.setItem("openRouterApiKey", newKey);
-    localStorage.setItem("openRouterModel", newModel);
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -106,8 +86,6 @@ export default function ChatPage() {
             role: m.role,
             content: m.content,
           })),
-          apiKey,
-          model,
         }),
       });
 
@@ -116,7 +94,7 @@ export default function ChatPage() {
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: data.content || "I'm here to listen. Could you tell me more?",
+        content: data.content || "I'm listening. Take your time to share whatever feels heavy.",
         emotion: data.emotion,
         timestamp: new Date(),
       };
@@ -126,7 +104,7 @@ export default function ChatPage() {
         id: crypto.randomUUID(),
         role: "assistant",
         content:
-          "I'm having trouble connecting. Please try again. Remember, I'm always here when you need to talk.",
+          "I'm here with you. There was a brief connection hiccup, but please feel free to try again.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, fallback]);
@@ -141,89 +119,92 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto">
-      <div className="flex justify-between items-center p-4 border-b border-border glass rounded-t-xl mt-4 mx-4 sm:mx-0">
-        <h1 className="font-semibold text-lg flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          MindHaven Chat
-        </h1>
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] max-w-3xl mx-auto px-4">
+      {/* Clean Header Bar */}
+      <div className="py-3.5 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <h1 className="font-semibold text-sm text-foreground">AI Companion</h1>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+          <Lock className="h-3 w-3 text-emerald-500" />
+          <span>Encrypted Session</span>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      {/* Message Stream */}
+      <div className="flex-1 overflow-y-auto py-6 space-y-4">
         {messages.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4"
-          >
-            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-              <MessageCircle className="h-10 w-10 text-primary" />
+          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center max-w-md mx-auto space-y-5">
+            <div className="h-11 w-11 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+              <Sparkles className="h-5 w-5" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Start a Conversation</h2>
-            <p className="text-muted-foreground mb-8 max-w-md">
-              I&apos;m your AI companion for mental wellness. Share what&apos;s on your
-              mind—I&apos;m here to listen without judgment.
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <Button
-                  key={s}
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full"
-                  onClick={() => sendMessage(s)}
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                How are you feeling right now?
+              </h2>
+              <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                A safe, confidential space with no judgment. Tap a prompt or type below.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2 pt-2">
+              {SUGGESTION_PILLS.map((pill) => (
+                <button
+                  key={pill}
+                  onClick={() => sendMessage(pill)}
+                  className="rounded-full border border-border bg-card px-3.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
                 >
-                  {s}
-                </Button>
+                  {pill}
+                </button>
               ))}
             </div>
-          </motion.div>
+          </div>
         ) : (
-          <div className="space-y-6 pb-4">
+          <div className="space-y-4">
             <AnimatePresence>
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className={cn(
-                    "flex",
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  <Card
+              {messages.map((msg) => {
+                const isUser = msg.role === "user";
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className={cn(
-                      "max-w-[85%] sm:max-w-md p-4",
-                      msg.role === "user"
-                        ? "bg-primary/10 border-primary/20"
-                        : "glass"
+                      "flex",
+                      isUser ? "justify-end" : "justify-start"
                     )}
                   >
-                    {msg.role === "assistant" && msg.emotion && (
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Detected: {msg.emotion}
-                      </p>
-                    )}
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </Card>
-                </motion.div>
-              ))}
+                    <div
+                      className={cn(
+                        "max-w-[85%] sm:max-w-md p-3.5 text-xs sm:text-sm leading-relaxed",
+                        isUser
+                          ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-none font-normal"
+                          : "border border-border bg-card text-foreground rounded-2xl rounded-tl-none"
+                      )}
+                    >
+                      {!isUser && msg.emotion && (
+                        <span className="block mb-1 text-[10px] font-semibold text-accent uppercase tracking-wider">
+                          {msg.emotion}
+                        </span>
+                      )}
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
+
             {loading && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex justify-start"
-              >
-                <Card className="p-4 glass">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span className="text-muted-foreground">
-                      Thinking...
-                    </span>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+                <div className="p-3 rounded-2xl border border-border bg-card text-xs text-muted-foreground flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-bounce" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-bounce [animation-delay:0.2s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-bounce [animation-delay:0.4s]" />
                   </div>
-                </Card>
+                  <span className="text-[11px] ml-1">Reflecting...</span>
+                </div>
               </motion.div>
             )}
             <div ref={messagesEndRef} />
@@ -231,26 +212,27 @@ export default function ChatPage() {
         )}
       </div>
 
-      <div className="border-t border-border p-4 glass">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
+      {/* Rounded Composer Bar */}
+      <div className="py-4 border-t border-border">
+        <form onSubmit={handleSubmit} className="flex gap-2 items-center">
+          <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Share what's on your mind..."
-            className="flex-1"
+            className="flex-1 rounded-xl border border-border bg-card px-4 py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
             disabled={loading}
           />
-          <Button type="submit" disabled={loading}>
-            {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
+          <Button
+            type="submit"
+            disabled={loading || !input.trim()}
+            size="icon"
+            className="h-10 w-10 shrink-0 rounded-xl"
+          >
+            <Send className="h-4 w-4" />
           </Button>
         </form>
-        <p className="text-xs text-muted-foreground mt-2 text-center">
-          <Sparkles className="h-3 w-3 inline mr-1" />
-          Your conversations are confidential and not shared
+        <p className="text-[11px] text-muted-foreground mt-2 text-center">
+          MindHaven provides non-diagnostic emotional support and does not replace emergency medical care.
         </p>
       </div>
     </div>

@@ -6,8 +6,10 @@ export interface User {
   id: string;
   email: string;
   name?: string | null;
+  role?: string;
   avatarUrl?: string | null;
   isAnonymous?: boolean;
+  isSuspended?: boolean;
 }
 
 interface AuthContextType {

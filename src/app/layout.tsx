@@ -1,21 +1,15 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Navbar } from "@/components/navbar";
 import { AuthProvider } from "@/context/auth-context";
 import { AuthModal } from "@/components/auth-modal";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
 export const metadata: Metadata = {
-  title: "MINDHAVEN – AI Mental Wellness for Youth",
+  title: "MindHaven – Mental Wellness Support",
   description:
-    "Your safe space for mental wellness. AI-powered, confidential, empathetic support for youth seeking emotional guidance.",
-  keywords: ["mental health", "AI wellness", "youth", "India", "therapy"],
+    "Free, private and always-on AI mental wellness companion, peer connections, and verified consultations.",
+  keywords: ["mental wellness", "AI support", "youth", "therapy", "peer support"],
 };
 
 export default function RootLayout({
@@ -25,7 +19,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body className="font-sans antialiased min-h-screen bg-background text-foreground selection:bg-accent/20 selection:text-foreground">
         <AuthProvider>
           <ThemeProvider>
             <div className="relative min-h-screen flex flex-col">

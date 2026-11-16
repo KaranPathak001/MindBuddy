@@ -1,5 +1,5 @@
 // MINDHAVEN - AI Mental Wellness for Youth
-// Database Schema - PostgreSQL
+// Extended Database Schema - PostgreSQL
 
 generator client {
   provider = "prisma-client-js"
@@ -10,6 +10,92 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  MEDICAL_STUDENT
+  PSYCHIATRIST
+  ADMIN
+}
+
+enum ExpertType {
+  STUDENT
+  PSYCHIATRIST
+}
+
+enum VerificationStatus {
+  UNSUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum ConsultationType {
+  FIVE_MIN_FREE
+  PAID
+}
+
+enum ConsultationStatus {
+  ACTIVE
+  COMPLETED
+  TERMINATED_BY_USER
+  ABANDONED
+}
+
+enum PaymentStatus {
+  CREATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  CONSULTATION
+  PACKAGE
+  SUBSCRIPTION
+}
+
+enum SubscriptionTier {
+  FREE
+  PLUS
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum ConversationPreference {
+  LISTEN
+  SHARE
+  CASUAL
+  FRIENDS
+  SIMILAR_INTERESTS
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -17,14 +103,43 @@ model User {
   googleId      String?   @unique @map("google_id")
   avatarUrl     String?   @map("avatar_url")
   name          String?
+  role          Role      @default(USER)
   isAnonymous   Boolean   @default(false) @map("is_anonymous")
+  isSuspended   Boolean   @default(false) @map("is_suspended")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  moodLogs      MoodLog[]
-  chatHistory   ChatMessage[]
-  journalEntries JournalEntry[]
-  communityPosts CommunityPost[]
+  // Existing Relations
+  moodLogs        MoodLog[]
+  chatHistory     ChatMessage[]
+  journalEntries  JournalEntry[]
+  communityPosts  CommunityPost[]
+
+  // Professional Marketplace Relations
+  expertProfile        ExpertProfile?
+  appointments         Appointment[]         @relation("UserAppointments")
+  consultations        Consultation[]        @relation("UserConsultations")
+  consultationUsage    ConsultationUsage?
+  payments             Payment[]
+  subscriptions        Subscription[]
+  subscriptionCredits  SubscriptionCredit[]
+  reviewsGiven         Review[]
+
+  // Social / Peer Circle Relations
+  peerProfile          PeerProfile?
+  sentRequests         ConnectionRequest[]   @relation("SentRequests")
+  receivedRequests     ConnectionRequest[]   @relation("ReceivedRequests")
+  conversationMembers  PeerConversationMember[]
+  peerMessagesSent     PeerMessage[]
+  dailyMatches         DailyMatch[]          @relation("UserDailyMatches")
+  circleMemberships    CircleMember[]
+  circlePosts          CirclePost[]
+  circleComments       CircleComment[]
+  blockedUsers         UserBlock[]           @relation("BlockerUsers")
+  blockedByUsers       UserBlock[]           @relation("BlockedUsers")
+  reportsFiled         UserReport[]          @relation("ReporterUsers")
+  reportsReceived      UserReport[]          @relation("ReportedUsers")
+  notifications        Notification[]
 
   @@map("users")
 }
@@ -93,17 +208,426 @@ model Resource {
 }
 
 model CommunityPost {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  content   String
-  isAnonymous Boolean @default(true) @map("is_anonymous")
-  approved  Boolean  @default(false)
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  content     String
+  isAnonymous Boolean  @default(true) @map("is_anonymous")
+  approved    Boolean  @default(false)
   toxicityScore Float? @map("toxicity_score")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([approved])
   @@map("community_posts")
+}
+
+// ==========================================
+// MINDHAVEN CONNECT: PROFESSIONAL MARKETPLACE
+// ==========================================
+
+model ExpertProfile {
+  id                  String             @id @default(cuid())
+  userId              String             @unique @map("user_id")
+  type                ExpertType
+  fullName            String             @map("full_name")
+  avatarUrl           String?            @map("avatar_url")
+  bio                 String
+  collegeOrHospital   String             @map("college_or_hospital")
+  qualifications      String
+  registrationNumber  String?            @map("registration_number") // Required for Psychiatrists
+  medicalCouncil      String?            @map("medical_council")
+  specializations     String[]           // Array of tags: e.g. ["Depression", "Anxiety", "Youth Wellness"]
+  languages           String[]           // Array of languages e.g. ["English", "Hindi"]
+  yearsOfExperience   Int                @default(0) @map("years_of_experience")
+  consultationPrice   Int                @default(0) @map("consultation_price") // Integer paise (e.g. 50000 = Rs 500)
+  isAvailableNow      Boolean            @default(false) @map("is_available_now")
+  verificationStatus  VerificationStatus @default(PENDING) @map("verification_status")
+  averageRating       Float              @default(5.0) @map("average_rating")
+  totalReviews        Int                @default(0) @map("total_reviews")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verifications       ExpertVerification[]
+  availabilities      ExpertAvailability[]
+  appointments        Appointment[]
+  consultations       Consultation[]
+  reviews             Review[]
+
+  @@index([type])
+  @@index([verificationStatus])
+  @@index([isAvailableNow])
+  @@map("expert_profiles")
+}
+
+model ExpertVerification {
+  id              String             @id @default(cuid())
+  expertProfileId String             @map("expert_profile_id")
+  documentType    String             @map("document_type") // e.g. "STUDENT_ID", "MEDICAL_REGISTRATION", "DEGREE"
+  documentUrl     String             @map("document_url")
+  status          VerificationStatus @default(PENDING)
+  notes           String?
+  reviewedAt      DateTime?          @map("reviewed_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  expertProfile   ExpertProfile      @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  @@index([expertProfileId])
+  @@map("expert_verifications")
+}
+
+model ExpertAvailability {
+  id              String        @id @default(cuid())
+  expertProfileId String        @map("expert_profile_id")
+  dayOfWeek       Int           // 0 = Sunday, 1 = Monday, ... 6 = Saturday
+  startTime       String        // "09:00" in 24hr format
+  endTime         String        // "17:00"
+  slotDuration    Int           @default(30) @map("slot_duration") // Minutes
+  isActive        Boolean       @default(true) @map("is_active")
+
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  @@index([expertProfileId])
+  @@map("expert_availabilities")
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  userId          String            @map("user_id")
+  expertProfileId String            @map("expert_profile_id")
+  scheduledAt     DateTime          @map("scheduled_at")
+  durationMinutes Int               @default(30) @map("duration_minutes")
+  status          AppointmentStatus @default(CONFIRMED)
+  notes           String?
+  meetingRoomId   String?           @map("meeting_room_id")
+  paymentId       String?           @map("payment_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  user            User              @relation("UserAppointments", fields: [userId], references: [id], onDelete: Cascade)
+  expert          ExpertProfile     @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  payment         Payment?          @relation(fields: [paymentId], references: [id])
+  consultations   Consultation[]
+
+  @@index([userId])
+  @@index([expertProfileId])
+  @@index([scheduledAt])
+  @@map("appointments")
+}
+
+model Consultation {
+  id              String             @id @default(cuid())
+  userId          String             @map("user_id")
+  expertProfileId String             @map("expert_profile_id")
+  appointmentId   String?            @map("appointment_id")
+  type            ConsultationType   @default(PAID)
+  status          ConsultationStatus @default(ACTIVE)
+  roomId          String             @map("room_id")
+  roomCode        String?            @map("room_code")
+  startedAt       DateTime           @default(now()) @map("started_at")
+  endedAt         DateTime?          @map("ended_at")
+  maxAllowedSecs  Int                @default(300) @map("max_allowed_secs") // 300 for 5-min trial, 600, 1200, 1800
+  durationSeconds Int                @default(0) @map("duration_seconds")
+  notes           String?
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  user            User               @relation("UserConsultations", fields: [userId], references: [id], onDelete: Cascade)
+  expert          ExpertProfile      @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  appointment     Appointment?       @relation(fields: [appointmentId], references: [id])
+
+  @@index([userId])
+  @@index([expertProfileId])
+  @@map("consultations")
+}
+
+model ConsultationUsage {
+  id              String    @id @default(cuid())
+  userId          String    @unique @map("user_id")
+  hasUsedFreeTrial Boolean  @default(false) @map("has_used_free_trial")
+  usedAt          DateTime? @map("used_at")
+  consultationId  String?   @map("consultation_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("consultation_usages")
+}
+
+model Payment {
+  id               String        @id @default(cuid())
+  userId           String        @map("user_id")
+  razorpayOrderId  String        @unique @map("razorpay_order_id")
+  razorpayPaymentId String?      @unique @map("razorpay_payment_id")
+  razorpaySignature String?      @map("razorpay_signature")
+  amount           Int           // in paise
+  currency         String        @default("INR")
+  status           PaymentStatus @default(CREATED)
+  type             PaymentType   @default(CONSULTATION)
+  description      String?
+  metadata         String?       // JSON string
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments     Appointment[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  userId          String             @map("user_id")
+  tier            SubscriptionTier   @default(FREE)
+  status          SubscriptionStatus @default(ACTIVE)
+  startDate       DateTime           @default(now()) @map("start_date")
+  endDate         DateTime?          @map("end_date")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model SubscriptionCredit {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  totalCredits    Int       @default(0) @map("total_credits")
+  usedCredits     Int       @default(0) @map("used_credits")
+  expiresAt       DateTime? @map("expires_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscription_credits")
+}
+
+model Review {
+  id              String        @id @default(cuid())
+  userId          String        @map("user_id")
+  expertProfileId String        @map("expert_profile_id")
+  rating          Int           // 1 to 5
+  comment         String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expert          ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, expertProfileId])
+  @@map("reviews")
+}
+
+// ==========================================
+// MODULE C: MINDHAVEN CIRCLE (PEER CONNECTION)
+// ==========================================
+
+model PeerProfile {
+  id                     String                 @id @default(cuid())
+  userId                 String                 @unique @map("user_id")
+  displayName            String                 @map("display_name")
+  avatarIndex            Int                    @default(1) @map("avatar_index")
+  bio                    String?
+  interests              String[]               // e.g. ["Coding", "Music", "College Stress", "Reading", "Mindfulness"]
+  preferredLanguage      String                 @default("English") @map("preferred_language")
+  conversationPreference ConversationPreference @default(FRIENDS) @map("conversation_preference")
+  isAvailable            Boolean                @default(true) @map("is_available")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isAvailable])
+  @@index([conversationPreference])
+  @@map("peer_profiles")
+}
+
+model ConnectionRequest {
+  id          String           @id @default(cuid())
+  senderId    String           @map("sender_id")
+  receiverId  String           @map("receiver_id")
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  sender      User             @relation("SentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User             @relation("ReceivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId])
+  @@map("connection_requests")
+}
+
+model PeerConversation {
+  id           String                   @id @default(cuid())
+  isAnonymous  Boolean                  @default(true) @map("is_anonymous")
+  lastActivity DateTime                 @default(now()) @map("last_activity")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+
+  members      PeerConversationMember[]
+  messages     PeerMessage[]
+
+  @@map("peer_conversations")
+}
+
+model PeerConversationMember {
+  id             String           @id @default(cuid())
+  conversationId String           @map("conversation_id")
+  userId         String           @map("user_id")
+  unreadCount    Int              @default(0) @map("unread_count")
+  joinedAt       DateTime         @default(now()) @map("joined_at")
+
+  conversation   PeerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("peer_conversation_members")
+}
+
+model PeerMessage {
+  id             String           @id @default(cuid())
+  conversationId String           @map("conversation_id")
+  senderId       String           @map("sender_id")
+  content        String
+  isRead         Boolean          @default(false) @map("is_read")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  conversation   PeerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@map("peer_messages")
+}
+
+model DailyMatch {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  matchedUserId  String   @map("matched_user_id")
+  matchDate      String   @map("match_date") // YYYY-MM-DD
+  sharedReasons  String[] @map("shared_reasons")
+  isActioned     Boolean  @default(false) @map("is_actioned")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user           User     @relation("UserDailyMatches", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchDate])
+  @@map("daily_matches")
+}
+
+model Circle {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String
+  icon        String         @default("heart")
+  memberCount Int            @default(0) @map("member_count")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  members     CircleMember[]
+  posts       CirclePost[]
+
+  @@map("circles")
+}
+
+model CircleMember {
+  id        String   @id @default(cuid())
+  circleId  String   @map("circle_id")
+  userId    String   @map("user_id")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@map("circle_members")
+}
+
+model CirclePost {
+  id          String          @id @default(cuid())
+  circleId    String          @map("circle_id")
+  userId      String          @map("user_id")
+  title       String
+  content     String
+  isAnonymous Boolean         @default(true) @map("is_anonymous")
+  likesCount  Int             @default(0) @map("likes_count")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  circle      Circle          @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  author      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments    CircleComment[]
+
+  @@index([circleId])
+  @@map("circle_posts")
+}
+
+model CircleComment {
+  id          String     @id @default(cuid())
+  postId      String     @map("post_id")
+  userId      String     @map("user_id")
+  content     String
+  isAnonymous Boolean    @default(true) @map("is_anonymous")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  post        CirclePost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@map("circle_comments")
+}
+
+model UserBlock {
+  id         String   @id @default(cuid())
+  blockerId  String   @map("blocker_id")
+  blockedId  String   @map("blocked_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  blocker    User     @relation("BlockerUsers", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked    User     @relation("BlockedUsers", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@map("user_blocks")
+}
+
+model UserReport {
+  id           String       @id @default(cuid())
+  reporterId   String       @map("reporter_id")
+  reportedId   String?      @map("reported_id")
+  targetType   String       @map("target_type") // USER, MESSAGE, POST
+  targetId     String       @map("target_id")
+  reason       String
+  details      String?
+  status       ReportStatus @default(PENDING)
+  adminNotes   String?      @map("admin_notes")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  reporter     User         @relation("ReporterUsers", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User?        @relation("ReportedUsers", fields: [reportedId], references: [id])
+
+  @@index([status])
+  @@map("user_reports")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      String   // CALL, MATCH, REQUEST, APPOINTMENT, SYSTEM
+  link      String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
 }

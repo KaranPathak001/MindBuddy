@@ -52,8 +52,10 @@ export async function getAuthUser() {
         id: true,
         email: true,
         name: true,
+        role: true,
         avatarUrl: true,
         isAnonymous: true,
+        isSuspended: true,
         createdAt: true,
       },
     });

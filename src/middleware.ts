@@ -5,23 +5,39 @@ import { jwtVerify } from "jose";
 const JWT_SECRET = process.env.JWT_SECRET || "mindhaven_karan_secure_jwt_2026";
 const key = new TextEncoder().encode(JWT_SECRET);
 
+// Protected routes requiring authentication & authorization
+const PROTECTED_PREFIXES = ["/expert", "/admin"];
+
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
+  const { pathname } = request.nextUrl;
 
   let isAuthenticated = false;
+  let userPayload: any = null;
+
   if (token) {
     try {
-      await jwtVerify(token, key);
+      const { payload } = await jwtVerify(token, key);
       isAuthenticated = true;
+      userPayload = payload;
     } catch {
       isAuthenticated = false;
     }
   }
 
-  // Clone headers to pass authentication status if needed
+  // Handle protected page redirects
+  const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  if (isProtected && !isAuthenticated) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    url.searchParams.set("auth", "required");
+    return NextResponse.redirect(url);
+  }
+
   const response = NextResponse.next();
-  if (isAuthenticated) {
+  if (isAuthenticated && userPayload) {
     response.headers.set("x-is-authenticated", "true");
+    response.headers.set("x-user-id", userPayload.userId || "");
   }
 
   return response;

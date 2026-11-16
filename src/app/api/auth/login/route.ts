@@ -47,7 +47,10 @@ export async function POST(request: Request) {
         id: user.id,
         email: user.email,
         name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
         isAnonymous: user.isAnonymous,
+        isSuspended: user.isSuspended,
         createdAt: user.createdAt,
       },
     });
