@@ -1,32 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { SignJWT } from "jose";
+import { createHMSRoom, generateAppToken } from "@/lib/hms";
+import { pusherServer } from "@/lib/pusher-server";
 
-const HMS_APP_ACCESS_KEY = process.env.HMS_APP_ACCESS_KEY || "mock_100ms_access_key";
-const HMS_APP_SECRET = process.env.HMS_APP_SECRET || "mock_100ms_app_secret";
-
-// Generates a cryptographically signed 100ms client auth token strictly on the backend
-async function generate100msToken(roomId: string, userId: string, role: "host" | "guest" = "guest"): Promise<string> {
-  const secretKey = new TextEncoder().encode(HMS_APP_SECRET);
-  const issuedAt = Math.floor(Date.now() / 1000);
-  
-  const token = await new SignJWT({
-    access_key: HMS_APP_ACCESS_KEY,
-    room_id: roomId,
-    user_id: userId,
-    role: role,
-    type: "app",
-    version: 2,
-  })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt(issuedAt)
-    .setExpirationTime(issuedAt + 24 * 3600) // 24 hours
-    .setJti(Math.random().toString(36).substring(2))
-    .sign(secretKey);
-
-  return token;
-}
+const startSchema = z.object({
+  expertProfileId: z.string().min(1, "Expert profile ID is required"),
+  type: z.enum(["FIVE_MIN_FREE", "PAID"]).optional().default("PAID"),
+  appointmentId: z.string().optional().nullable(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -35,24 +18,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    const { expertProfileId, type, appointmentId } = await request.json();
-
-    if (!expertProfileId) {
-      return NextResponse.json({ error: "Expert profile ID required" }, { status: 400 });
+    if (user.isSuspended) {
+      return NextResponse.json(
+        { error: "Your account is suspended. Please contact support." },
+        { status: 403 }
+      );
     }
 
+    const body = await request.json();
+    const parsed = startSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || "Invalid input" },
+        { status: 400 }
+      );
+    }
+
+    const { expertProfileId, type, appointmentId } = parsed.data;
     const isFreeTrial = type === "FIVE_MIN_FREE";
 
-    // Strict Free Trial Verification on Backend
+    // Prevent self-consultation
+    const expert = await prisma.expertProfile.findUnique({
+      where: { id: expertProfileId },
+      select: { id: true, userId: true, fullName: true, verificationStatus: true },
+    });
+
+    if (!expert) {
+      return NextResponse.json({ error: "Expert not found" }, { status: 404 });
+    }
+
+    if (expert.userId === user.id) {
+      return NextResponse.json(
+        { error: "You cannot start a consultation with yourself" },
+        { status: 400 }
+      );
+    }
+
+    if (expert.verificationStatus !== "APPROVED") {
+      return NextResponse.json(
+        { error: "This expert is not yet verified and cannot accept consultations" },
+        { status: 403 }
+      );
+    }
+
+    // Free trial eligibility check
     if (isFreeTrial) {
       const usage = await prisma.consultationUsage.findUnique({
         where: { userId: user.id },
       });
 
-      if (usage && usage.hasUsedFreeTrial) {
+      if (usage?.hasUsedFreeTrial) {
         return NextResponse.json(
           {
-            error: "You have already utilized your one-time 5-minute complimentary consultation allowance. Please select a consultation package.",
+            error:
+              "You have already used your one-time 5-minute complimentary consultation. Please choose a paid package.",
             code: "TRIAL_ALREADY_USED",
           },
           { status: 403 }
@@ -60,61 +79,105 @@ export async function POST(request: Request) {
       }
     }
 
-    const roomId = `room-${expertProfileId}-${Date.now().toString(36)}`;
-    const maxAllowedSecs = isFreeTrial ? 300 : 1800; // 300s = 5 mins, 1800s = 30 mins
-
-    // Mark trial usage atomically in DB if trial
-    let consultation: any = null;
-    try {
-      consultation = await prisma.$transaction(async (tx) => {
-        if (isFreeTrial) {
-          await tx.consultationUsage.upsert({
-            where: { userId: user.id },
-            update: { hasUsedFreeTrial: true, usedAt: new Date() },
-            create: { userId: user.id, hasUsedFreeTrial: true, usedAt: new Date() },
-          });
-        }
-
-        return await tx.consultation.create({
-          data: {
-            userId: user.id,
-            expertProfileId: expertProfileId.startsWith("exp-") ? undefined : expertProfileId,
-            appointmentId: appointmentId || null,
-            type: isFreeTrial ? "FIVE_MIN_FREE" : "PAID",
-            status: "ACTIVE",
-            roomId,
-            maxAllowedSecs,
-          },
-        });
+    // If appointment-based, verify the appointment belongs to this user + expert
+    if (appointmentId) {
+      const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        select: { userId: true, expertProfileId: true, status: true },
       });
-    } catch {
-      // In case expert is demo mock or not in DB, fallback consultation instance
-      consultation = {
-        id: `cons-${Date.now()}`,
-        userId: user.id,
-        expertProfileId,
-        type: isFreeTrial ? "FIVE_MIN_FREE" : "PAID",
-        status: "ACTIVE",
-        roomId,
-        startedAt: new Date().toISOString(),
-        maxAllowedSecs,
-      };
+
+      if (!appointment || appointment.userId !== user.id) {
+        return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+      }
+
+      if (appointment.expertProfileId !== expertProfileId) {
+        return NextResponse.json({ error: "Appointment expert mismatch" }, { status: 400 });
+      }
+
+      if (appointment.status !== "CONFIRMED") {
+        return NextResponse.json(
+          { error: "Appointment is not confirmed" },
+          { status: 400 }
+        );
+      }
     }
 
-    // Generate secure 100ms token
-    const token = await generate100msToken(roomId, user.id, "guest");
+    const maxAllowedSecs = isFreeTrial ? 300 : 1800;
+
+    // Create a real 100ms room
+    const roomName = `mh-${user.id.slice(-6)}-${expertProfileId.slice(-6)}-${Date.now().toString(36)}`;
+    const hmsRoom = await createHMSRoom(roomName);
+
+    // Generate app token for user (guest role)
+    const clientToken = await generateAppToken(hmsRoom.id, user.id, "guest");
+
+    // Persist consultation in a transaction
+    const consultation = await prisma.$transaction(async (tx) => {
+      if (isFreeTrial) {
+        await tx.consultationUsage.upsert({
+          where: { userId: user.id },
+          update: { hasUsedFreeTrial: true, usedAt: new Date() },
+          create: {
+            userId: user.id,
+            hasUsedFreeTrial: true,
+            usedAt: new Date(),
+          },
+        });
+      }
+
+      const cons = await tx.consultation.create({
+        data: {
+          userId: user.id,
+          expertProfileId,
+          appointmentId: appointmentId ?? null,
+          type: isFreeTrial ? "FIVE_MIN_FREE" : "PAID",
+          status: "ACTIVE",
+          roomId: roomName,
+          hmsRoomId: hmsRoom.id,
+          maxAllowedSecs,
+        },
+      });
+
+      // Notify the expert of the incoming call
+      await tx.notification.create({
+        data: {
+          userId: expert.userId,
+          type: "CALL",
+          title: "Incoming Consultation Request",
+          message: `A patient is waiting in your consultation room.`,
+          link: `/expert/dashboard?call=${cons.id}`,
+        },
+      });
+
+      return cons;
+    });
+
+    // Push real-time notification to expert via Pusher
+    if (pusherServer) {
+      await pusherServer
+        .trigger(`private-user-${expert.userId}`, "incoming-call", {
+          consultationId: consultation.id,
+          hmsRoomId: hmsRoom.id,
+          patientName: "Anonymous Patient",
+          type,
+        })
+        .catch((err: unknown) =>
+          console.error("Pusher trigger failed:", err)
+        );
+    }
 
     return NextResponse.json({
       success: true,
       consultationId: consultation.id,
-      roomId,
-      token,
+      roomId: hmsRoom.id,
+      token: clientToken,
       maxAllowedSecs,
       startedAt: consultation.startedAt,
       isFreeTrial,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to start consultation";
     console.error("Consultation Start Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to start consultation" }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

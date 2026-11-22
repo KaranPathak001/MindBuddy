@@ -3,7 +3,10 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 
-const JWT_SECRET = process.env.JWT_SECRET || "mindhaven_karan_secure_jwt_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing. Application cannot start safely.");
+}
 const key = new TextEncoder().encode(JWT_SECRET);
 
 export const COOKIE_NAME = "token";

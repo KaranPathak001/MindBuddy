@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { endHMSRoom } from "@/lib/hms";
 
-// Server heartbeat endpoint to track and enforce duration safely
+const heartbeatSchema = z.object({
+  consultationId: z.string().min(1, "Consultation ID required"),
+});
+
 export async function POST(request: Request) {
   try {
     const user = await getAuthUser();
@@ -10,38 +15,78 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    const { consultationId } = await request.json();
-    if (!consultationId) {
-      return NextResponse.json({ error: "Consultation ID required" }, { status: 400 });
+    const body = await request.json();
+    const parsed = heartbeatSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || "Invalid input" },
+        { status: 400 }
+      );
     }
 
-    try {
-      const consultation = await prisma.consultation.findUnique({
-        where: { id: consultationId },
-      });
+    const { consultationId } = parsed.data;
 
-      if (!consultation) {
-        return NextResponse.json({ active: true, remainingSecs: 300 });
-      }
+    const consultation = await prisma.consultation.findUnique({
+      where: { id: consultationId },
+      include: { expert: { select: { userId: true } } },
+    });
 
-      const elapsedSecs = Math.floor((Date.now() - new Date(consultation.startedAt).getTime()) / 1000);
-      const remainingSecs = Math.max(0, consultation.maxAllowedSecs - elapsedSecs);
+    if (!consultation) {
+      return NextResponse.json({ error: "Consultation not found" }, { status: 404 });
+    }
 
-      // Safe handover: When remaining seconds reach 0 on 5-min trial, do NOT abruptly cut off clinical safety
-      const expired = remainingSecs <= 0;
+    const isPatient = consultation.userId === user.id;
+    const isExpert = consultation.expert.userId === user.id;
+    if (!isPatient && !isExpert) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
 
+    if (consultation.status !== "ACTIVE") {
       return NextResponse.json({
-        active: !expired,
-        elapsedSecs,
-        remainingSecs,
-        expired,
-        type: consultation.type,
+        active: false,
+        expired: true,
+        remainingSecs: 0,
+        status: consultation.status,
       });
-    } catch {
-      return NextResponse.json({ active: true, remainingSecs: 300, elapsedSecs: 0 });
     }
-  } catch (error) {
+
+    // Server time calculation
+    const now = Date.now();
+    const startedTime = new Date(consultation.startedAt).getTime();
+    const elapsedSecs = Math.max(0, Math.floor((now - startedTime) / 1000));
+    const remainingSecs = Math.max(0, consultation.maxAllowedSecs - elapsedSecs);
+    const expired = remainingSecs <= 0;
+
+    // Auto-end server side if trial and expired
+    if (expired && consultation.type === "FIVE_MIN_FREE") {
+      await prisma.consultation.update({
+        where: { id: consultationId },
+        data: {
+          status: "COMPLETED",
+          endedAt: new Date(),
+          durationSeconds: elapsedSecs,
+          endReason: "FREE_TRIAL_LIMIT_REACHED",
+        },
+      });
+
+      if (consultation.hmsRoomId) {
+        await endHMSRoom(consultation.hmsRoomId, "Free trial duration reached (5 mins)").catch(
+          (err) => console.error("Error auto-ending 100ms room:", err)
+        );
+      }
+    }
+
+    return NextResponse.json({
+      active: !expired,
+      elapsedSecs,
+      remainingSecs,
+      expired,
+      type: consultation.type,
+      maxAllowedSecs: consultation.maxAllowedSecs,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Heartbeat failed";
     console.error("Heartbeat error:", error);
-    return NextResponse.json({ error: "Heartbeat failed" }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -251,7 +251,7 @@ export function MoodAssessment({ onComplete, onClose }: MoodAssessmentProps) {
                   {result.mood || "Reflective"}
                 </span>
                 <p className="text-xs text-muted-foreground">
-                  Here is how you're feeling right now
+                  Here is how you&apos;re feeling right now
                 </p>
               </div>
             </div>
@@ -329,7 +329,7 @@ export function MoodAssessment({ onComplete, onClose }: MoodAssessmentProps) {
         >
           {step === 0 && (
             <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-center">What's been on your mind the most today?</h3>
+              <h3 className="text-xl font-semibold text-center">What&apos;s been on your mind the most today?</h3>
               <textarea
                 value={q1Mind}
                 onChange={(e) => setQ1Mind(e.target.value)}
@@ -384,7 +384,7 @@ export function MoodAssessment({ onComplete, onClose }: MoodAssessmentProps) {
           )}
           {step === 3 && (
             <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-center">What's one thing you did today that you're proud of, or wish had gone differently?</h3>
+              <h3 className="text-xl font-semibold text-center">What&apos;s one thing you did today that you&apos;re proud of, or wish had gone differently?</h3>
               <textarea
                 value={q4Proud}
                 onChange={(e) => setQ4Proud(e.target.value)}
@@ -396,7 +396,7 @@ export function MoodAssessment({ onComplete, onClose }: MoodAssessmentProps) {
           )}
           {step === 4 && (
             <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-center">How did you sleep, and how's your body feeling right now?</h3>
+              <h3 className="text-xl font-semibold text-center">How did you sleep, and how&apos;s your body feeling right now?</h3>
               <textarea
                 value={q5Body}
                 onChange={(e) => setQ5Body(e.target.value)}

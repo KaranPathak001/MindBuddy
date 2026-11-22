@@ -17,98 +17,133 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
+    if (user.isSuspended) {
+      return NextResponse.json(
+        { error: "Your account is currently suspended." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const validation = bookAppointmentSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(
-        { error: "Invalid booking details", details: validation.error.flatten() },
+        { error: validation.error.issues[0]?.message || "Invalid booking details" },
         { status: 400 }
       );
     }
 
     const { expertProfileId, scheduledAt, durationMinutes, notes } = validation.data;
     const targetDate = new Date(scheduledAt);
+    const now = Date.now();
 
-    if (targetDate.getTime() < Date.now()) {
-      return NextResponse.json({ error: "Cannot schedule appointment in the past" }, { status: 400 });
+    // Must be at least 15 minutes ahead
+    if (targetDate.getTime() < now + 15 * 60 * 1000) {
+      return NextResponse.json(
+        { error: "Appointments must be scheduled at least 15 minutes in advance." },
+        { status: 400 }
+      );
+    }
+
+    // Maximum 30 days ahead
+    if (targetDate.getTime() > now + 30 * 24 * 60 * 60 * 1000) {
+      return NextResponse.json(
+        { error: "Appointments cannot be booked more than 30 days in advance." },
+        { status: 400 }
+      );
     }
 
     // Check expert exists & is approved
     const expert = await prisma.expertProfile.findUnique({
       where: { id: expertProfileId },
+      include: { user: { select: { id: true, email: true, name: true } } },
     });
 
     if (!expert) {
-      // If it's one of the demo profile IDs in local environment, simulate seamless booking
-      if (expertProfileId.startsWith("exp-")) {
-        return NextResponse.json({
-          success: true,
-          appointment: {
-            id: `apt-${Date.now()}`,
-            expertProfileId,
-            userId: user.id,
-            scheduledAt: targetDate.toISOString(),
-            durationMinutes,
-            status: "CONFIRMED",
-            notes,
-            meetingRoomId: `room-${Date.now()}`,
-          },
-          message: "Appointment confirmed with expert.",
-        });
-      }
       return NextResponse.json({ error: "Expert not found" }, { status: 404 });
     }
 
-    // Double-booking check: prevent conflicting appointments within slot duration
-    const conflictStart = new Date(targetDate.getTime() - durationMinutes * 60 * 1000);
-    const conflictEnd = new Date(targetDate.getTime() + durationMinutes * 60 * 1000);
-
-    const conflict = await prisma.appointment.findFirst({
-      where: {
-        expertProfileId,
-        status: { in: ["PENDING", "CONFIRMED"] },
-        scheduledAt: {
-          gte: conflictStart,
-          lte: conflictEnd,
-        },
-      },
-    });
-
-    if (conflict) {
+    if (expert.userId === user.id) {
       return NextResponse.json(
-        { error: "This time slot is already booked. Please choose an alternate slot." },
-        { status: 409 }
+        { error: "You cannot schedule an appointment with yourself." },
+        { status: 400 }
       );
     }
 
-    // Create unique private meeting room identifier
-    const meetingRoomId = `mh-meet-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    if (expert.verificationStatus !== "APPROVED") {
+      return NextResponse.json(
+        { error: "This practitioner is not yet approved for appointments." },
+        { status: 403 }
+      );
+    }
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        userId: user.id,
-        expertProfileId,
-        scheduledAt: targetDate,
-        durationMinutes,
-        notes,
-        meetingRoomId,
-        status: "CONFIRMED",
-      },
-      include: {
-        expert: {
-          select: { fullName: true, type: true, collegeOrHospital: true },
+    // Double-booking check inside a Prisma transaction
+    const newAppointment = await prisma.$transaction(async (tx) => {
+      const conflictStart = new Date(targetDate.getTime() - durationMinutes * 60 * 1000);
+      const conflictEnd = new Date(targetDate.getTime() + durationMinutes * 60 * 1000);
+
+      const conflict = await tx.appointment.findFirst({
+        where: {
+          expertProfileId,
+          status: { in: ["PENDING", "CONFIRMED"] },
+          scheduledAt: {
+            gt: conflictStart,
+            lt: conflictEnd,
+          },
         },
-      },
+      });
+
+      if (conflict) {
+        throw new Error("SLOT_ALREADY_BOOKED");
+      }
+
+      const meetingRoomId = `mh-meet-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+
+      const created = await tx.appointment.create({
+        data: {
+          userId: user.id,
+          expertProfileId,
+          scheduledAt: targetDate,
+          durationMinutes,
+          notes: notes || null,
+          meetingRoomId,
+          status: "CONFIRMED",
+        },
+        include: {
+          expert: {
+            select: { fullName: true, type: true, collegeOrHospital: true },
+          },
+        },
+      });
+
+      // Create notification for expert
+      await tx.notification.create({
+        data: {
+          userId: expert.userId,
+          type: "APPOINTMENT",
+          title: "New Appointment Booked",
+          message: `A patient has booked a session on ${targetDate.toLocaleDateString("en-IN")}.`,
+          link: `/expert/dashboard`,
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json({
       success: true,
-      appointment,
-      message: "Appointment booked successfully.",
+      appointment: newAppointment,
+      message: "Appointment confirmed.",
     });
-  } catch (error: any) {
-    console.error("Booking error:", error);
-    return NextResponse.json({ error: error.message || "Failed to book appointment" }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "SLOT_ALREADY_BOOKED") {
+      return NextResponse.json(
+        { error: "This time slot was just booked by another user. Please choose another." },
+        { status: 409 }
+      );
+    }
+    const message = error instanceof Error ? error.message : "Failed to book appointment";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -121,15 +156,24 @@ export async function GET() {
 
     const appointments = await prisma.appointment.findMany({
       where: { userId: user.id },
+      orderBy: { scheduledAt: "asc" },
       include: {
-        expert: true,
+        expert: {
+          select: {
+            id: true,
+            fullName: true,
+            type: true,
+            avatarUrl: true,
+            qualifications: true,
+            consultationPrice: true,
+          },
+        },
       },
-      orderBy: { scheduledAt: "desc" },
     });
 
     return NextResponse.json({ appointments });
-  } catch (error) {
-    console.error("Fetch appointments error:", error);
-    return NextResponse.json({ appointments: [] });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to load appointments";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

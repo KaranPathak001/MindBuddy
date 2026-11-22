@@ -5,9 +5,9 @@ import crypto from "crypto";
 import { z } from "zod";
 
 const verifyPaymentSchema = z.object({
-  razorpayOrderId: z.string().min(1),
-  razorpayPaymentId: z.string().min(1),
-  razorpaySignature: z.string().min(1),
+  razorpayOrderId: z.string().min(1, "Order ID required"),
+  razorpayPaymentId: z.string().min(1, "Payment ID required"),
+  razorpaySignature: z.string().min(1, "Signature required"),
 });
 
 export async function POST(request: Request) {
@@ -20,21 +20,32 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validation = verifyPaymentSchema.safeParse(body);
     if (!validation.success) {
-      return NextResponse.json({ error: "Invalid payment verification data" }, { status: 400 });
+      return NextResponse.json(
+        { error: validation.error.issues[0]?.message || "Invalid payment verification data" },
+        { status: 400 }
+      );
     }
 
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = validation.data;
-    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "rzp_test_secret_key";
+    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!RAZORPAY_KEY_SECRET) {
+      console.warn("RAZORPAY_KEY_SECRET is not set; running in development bypass mode.");
+    }
 
     // Verify HMAC SHA256 Signature
-    const generatedSignature = crypto
-      .createHmac("sha256", RAZORPAY_KEY_SECRET)
-      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-      .digest("hex");
+    let isSignatureValid = false;
+    if (RAZORPAY_KEY_SECRET) {
+      const generatedSignature = crypto
+        .createHmac("sha256", RAZORPAY_KEY_SECRET)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+        .digest("hex");
 
-    // Allow signature match, or simulated test confirmation in test environments
-    const isMock = razorpayOrderId.startsWith("order_") && razorpaySignature.startsWith("mock_sig_");
-    const isSignatureValid = generatedSignature === razorpaySignature || isMock;
+      isSignatureValid = generatedSignature === razorpaySignature;
+    } else {
+      // In local dev without secret, allow signature
+      isSignatureValid = true;
+    }
 
     if (!isSignatureValid) {
       return NextResponse.json(
@@ -44,26 +55,35 @@ export async function POST(request: Request) {
     }
 
     // Update payment record atomically in database
-    try {
-      await prisma.payment.update({
-        where: { razorpayOrderId },
-        data: {
-          razorpayPaymentId,
-          razorpaySignature,
-          status: "SUCCESS",
-        },
-      });
-    } catch {
-      // Continue safely
+    const payment = await prisma.payment.findUnique({
+      where: { razorpayOrderId },
+    });
+
+    if (!payment) {
+      return NextResponse.json({ error: "Order record not found" }, { status: 404 });
     }
+
+    if (payment.userId !== user.id) {
+      return NextResponse.json({ error: "Unauthorized payment claim" }, { status: 403 });
+    }
+
+    const updatedPayment = await prisma.payment.update({
+      where: { razorpayOrderId },
+      data: {
+        razorpayPaymentId,
+        razorpaySignature,
+        status: "SUCCESS",
+      },
+    });
 
     return NextResponse.json({
       success: true,
       message: "Payment successfully verified and credited.",
-      paymentId: razorpayPaymentId,
+      paymentId: updatedPayment.id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Payment verification failed";
     console.error("Payment Verification Error:", error);
-    return NextResponse.json({ error: error.message || "Payment verification failed" }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

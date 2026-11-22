@@ -19,16 +19,21 @@ export function AuthModal() {
   } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register">(authModalMode);
+  const [prevAuthModalMode, setPrevAuthModalMode] = useState(authModalMode);
+  const [prevIsOpen, setPrevIsOpen] = useState(isAuthModalOpen);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  // Sync state during render when props change to avoid effect-driven cascading renders
+  if (authModalMode !== prevAuthModalMode || isAuthModalOpen !== prevIsOpen) {
+    setPrevAuthModalMode(authModalMode);
+    setPrevIsOpen(isAuthModalOpen);
     setMode(authModalMode);
     setError(null);
-  }, [authModalMode, isAuthModalOpen]);
+  }
 
   if (!isAuthModalOpen) return null;
 
